@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SolarRoof Planner Pro - Auto Grid</title>
+    <!-- טעינת ספריית הגרפיקה Fabric.js וערכת העיצוב Tailwind CSS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/531/fabric.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white font-sans min-h-screen p-6">
+
+    <div class="max-w-7xl mx-auto">
+        <header class="mb-6 flex justify-between items-center border-b border-slate-700 pb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-amber-400">SolarRoof Planner Pro</h1>
+                <p class="text-sm text-slate-400">מודול פאנלים 1.13x2.38 מטר | 650W לפאנל</p>
+            </div>
+            <div id="stats" class="bg-slate-800 px-4 py-3 rounded-lg border border-slate-700 text-sm flex gap-6">
+                <div>פאנלים: <span id="panel-count" class="font-bold text-amber-400">0</span></div>
+                <div>הספק: <span id="total-power" class="font-bold text-emerald-400">0.0 קילוואט</span></div>
+                <div>עלות משוערת: <span id="total-cost" class="font-bold text-cyan-400">₪0</span></div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <!-- תפריט צדדי -->
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col gap-4 h-fit">
+                <h2 class="font-semibold text-lg text-slate-200">ניהול פרויקט</h2>
+                
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">העלאת תמונת גג</label>
+                    <input type="file" id="upload" accept="image/*" class="w-full text-xs text-slate-300 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-amber-500 file:text-slate-900 hover:file:bg-amber-400 cursor-pointer">
+                </div>
+
+                <hr class="border-slate-700">
+
+                <h3 class="text-sm font-semibold text-amber-400">שלב 1: שרטוט הגג</h3>
+                <button onclick="startDrawingRoof()" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition">
+                    ✏️ שרטט גג (לחץ פינות)
+                </button>
+                <button onclick="finishDrawingRoof()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition">
+                    ✔️ סיים שרטוט גג
+                </button>
+
+                <hr class="border-slate-700">
+
+                <h3 class="text-sm font-semibold text-amber-400">שלב 2: פריסת פאנלים</h3>
+                <button onclick="autoFillRoof()" class="bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold py-2 px-4 rounded-lg text-sm transition">
+                    ⚡ פריסה אוטומטית לגג
+                </button>
+                <button onclick="addSinglePanel()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold py-2 px-4 rounded-lg text-sm transition">
+                    + הוסף פאנל ידנית
+                </button>
+
+                <hr class="border-slate-700">
+
+                <button onclick="clearAll()" class="bg-rose-600 hover:bg-rose-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition">
+                    🗑️ איפוס הכל
+                </button>
+
+                <div class="mt-2 text-xs text-slate-400 leading-relaxed bg-slate-900 p-3 rounded-lg border border-slate-700">
+                    <strong>הוראות הפעלה:</strong><br>
+                    1. העלה תמונת גג.<br>
+                    2. לחץ "שרטט גג" ולחץ על פינות הגג בתמונה.<br>
+                    3. לחץ "סיים שרטוט" ואז "פריסה אוטומטית".
+                </div>
+            </div>
+
+            <!-- אזור הציור (Canvas) -->
+            <div class="md:col-span-3 bg-slate-800 p-2 rounded-xl border border-slate-700 flex justify-center items-center overflow-hidden">
+                <div class="border border-slate-700 rounded-lg overflow-hidden bg-slate-950">
+                    <canvas id="canvas" width="800" height="550"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = new fabric.Canvas('canvas', {
+            backgroundColor: '#0f172a'
+        });
+
+        // מידות הפאנל (בפיקסלים יחסיים בקנבס עבור יחס של 1.13 על 2.38)
+        const PANEL_W = 45; 
+        const PANEL_H = 95; 
+        const PANEL_WATTS = 650;
+        const PRICE_PER_KW = 4000; // עלות משוערת לקילוואט בישראל
+
+        let isDrawing = false;
+        let roofPoints = [];
+        let roofPolygon = null;
+        let tempLines = [];
+
+        // העלאת תמונת רקע
+        document.getElementById('upload').addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (f) {
+                fabric.Image.fromURL(f.target.result, function (img) {
+                    img.scaleToWidth(800);
+                    canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas), {
+                        originX: 'left',
+                        originY: 'top',
+                        opacity: 0.8
+                    });
+                });
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // התחלת שרטוט גג
+        function startDrawingRoof() {
+            clearRoof();
+            isDrawing = true;
+            roofPoints = [];
+            alert('מצב שרטוט הופעל: לחץ על פינות הגג בתוך התמונה ברצף.');
+        }
+
+        // האזנה לקליקים לשרטוט הפוליגון
+        canvas.on('mouse:down', function(options) {
+            if (!isDrawing) return;
+            const pointer = canvas.getPointer(options.e);
+            roofPoints.push({ x: pointer.x, y: pointer.y });
+
+            // סימון נקודה ויזואלית
+            const circle = new fabric.Circle({
+                radius: 4,
+                fill: '#ef4444',
+                left: pointer.x - 4,
+                top: pointer.y - 4,
+                selectable: false
+            });
+            canvas.add(circle);
+            tempLines.push(circle);
+            canvas.renderAll();
+        });
+
+        // סיום שרטוט גג
+        function finishDrawingRoof() {
+            if (!isDrawing || roofPoints.length < 3) {
+                alert('יש לסמן לפחות 3 נקודות כדי ליצור גג.');
+                return;
+            }
+            isDrawing = false;
+
+            // הסרת נקודות העזר
+            tempLines.forEach(l => canvas.remove(l));
+            tempLines = [];
+
+            // יצירת פוליגון הגג
+            roofPolygon = new fabric.Polygon(roofPoints, {
+                fill: 'rgba(59, 130, 246, 0.2)',
+                stroke: '#3b82f6',
+                strokeWidth: 2,
+                selectable: false,
+                objectCaching: false
+            });
+
+            canvas.add(roofPolygon);
+            canvas.sendToBack(roofPolygon);
+            canvas.renderAll();
+            alert('הגג שורטט בהצלחה! כעת ניתן להריץ פריסה אוטומטית.');
+        }
+
+        // אלגוריתם פריסה אוטומטית בתוך התיבה של הגג
+        function autoFillRoof() {
+            if (!roofPolygon) {
+                alert('יש לשרטט גג תחילה!');
+                return;
+            }
+
+            // מחיקת פאנלים קודמים אם יש
+            clearPanelsOnly();
+
+            const bound = roofPolygon.getBoundingRect();
+            const spacing = 6; // רווח בין פאנלים
+
+            for (let y = bound.top; y < bound.top + bound.height; y += PANEL_H + spacing) {
+                for (let x = bound.left; x < bound.left + bound.width; x += PANEL_W + spacing) {
+                    
+                    // בדיקה האם מרכז הפאנל נמצא בתוך פוליגון הגג
+                    const centerX = x + PANEL_W / 2;
+                    const centerY = y + PANEL_H / 2;
+
+                    if (isPointInPolygon({x: centerX, y: centerY}, roofPoints)) {
+                        createPanelAt(x, y);
+                    }
+                }
+            }
+            updateStats();
+        }
+
+        // אלגוריתם בדיקה האם נקודה נמצאת בתוך פוליגון (Ray-casting algorithm)
+        function isPointInPolygon(point, polygon) {
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                let xi = polygon[i].x, yi = polygon[i].y;
+                let xj = polygon[j].x, yj = polygon[j].y;
+                
+                let intersect = ((yi > point.y) != (yj > point.y)) &&
+                    (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+
+        // יצירת פאנל במיקום ספציפי
+        function createPanelAt(left, top) {
+            const panel = new fabric.Rect({
+                width: PANEL_W,
+                height: PANEL_H,
+                fill: '#1e3a8a',
+                stroke: '#60a5fa',
+                strokeWidth: 1.5,
+                rx: 2,
+                ry: 2,
+                opacity: 0.95
+            });
+
+            const group = new fabric.Group([panel], {
+                left: left,
+                top: top,
+                subTargetCheck: false
+            });
+
+            canvas.add(group);
+        }
+
+        // הוספת פאנל יחיד ידנית
+        function addSinglePanel() {
+            createPanelAt(350, 250);
+            updateStats();
+        }
+
+        // מחיקת גג קודם
+        function clearRoof() {
+            if (roofPolygon) {
+                canvas.remove(roofPolygon);
+                roofPolygon = null;
+            }
+            tempLines.forEach(l => canvas.remove(l));
+            tempLines = [];
+        }
+
+        // מחיקת פאנלים בלבד
+        function clearPanelsOnly() {
+            const objects = canvas.getObjects().filter(obj => obj.type === 'group');
+            objects.forEach(obj => canvas.remove(obj));
+            updateStats();
+        }
+
+        // איפוס מלא
+        function clearAll() {
+            canvas.clear();
+            canvas.setBackgroundImage(null, canvas.renderAll.bind(canvas));
+            roofPolygon = null;
+            roofPoints = [];
+            isDrawing = false;
+            updateStats();
+        }
+
+        // עדכון סטטיסטיקות ועלויות
+        function updateStats() {
+            const panels = canvas.getObjects().filter(obj => obj.type === 'group');
+            const count = panels.length;
+            const totalKW = ((count * PANEL_WATTS) / 1000).toFixed(1);
+            const totalCost = (totalKW * PRICE_PER_KW).toLocaleString();
+
+            document.getElementById('panel-count').innerText = count;
+            document.getElementById('total-power').innerText = totalKW + ' קילוואט';
+            document.getElementById('total-cost').innerText = '₪' + totalCost;
+        }
+
+        canvas.on('object:added', updateStats);
+        canvas.on('object:removed', updateStats);
+    </script>
+</body>
+</html>
