@@ -5,11 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SolarRoof Planner Pro - Auto Grid</title>
     <!-- טעינת ספריית הגרפיקה Fabric.js וערכת העיצוב Tailwind CSS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/531/fabric.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cloudflare.com"></script>
+    <script src="https://tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-white font-sans min-h-screen p-6">
-
     <div class="max-w-7xl mx-auto">
         <header class="mb-6 flex justify-between items-center border-b border-slate-700 pb-4">
             <div>
@@ -27,24 +26,20 @@
             <!-- תפריט צדדי -->
             <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col gap-4 h-fit">
                 <h2 class="font-semibold text-lg text-slate-200">ניהול פרויקט</h2>
-                
                 <div>
                     <label class="block text-xs text-slate-400 mb-1">העלאת תמונת גג</label>
                     <input type="file" id="upload" accept="image/*" class="w-full text-xs text-slate-300 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-amber-500 file:text-slate-900 hover:file:bg-amber-400 cursor-pointer">
                 </div>
-
                 <hr class="border-slate-700">
-
                 <h3 class="text-sm font-semibold text-amber-400">שלב 1: שרטוט הגג</h3>
+                <!-- תיקון: הוסרו התווים המשובשים מה-onclick -->
                 <button onclick="startDrawingRoof()" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition">
                     ✏️ שרטט גג (לחץ פינות)
                 </button>
                 <button onclick="finishDrawingRoof()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition">
                     ✔️ סיים שרטוט גג
                 </button>
-
                 <hr class="border-slate-700">
-
                 <h3 class="text-sm font-semibold text-amber-400">שלב 2: פריסת פאנלים</h3>
                 <button onclick="autoFillRoof()" class="bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold py-2 px-4 rounded-lg text-sm transition">
                     ⚡ פריסה אוטומטית לגג
@@ -52,13 +47,11 @@
                 <button onclick="addSinglePanel()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold py-2 px-4 rounded-lg text-sm transition">
                     + הוסף פאנל ידנית
                 </button>
-
                 <hr class="border-slate-700">
-
                 <button onclick="clearAll()" class="bg-rose-600 hover:bg-rose-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition">
                     🗑️ איפוס הכל
                 </button>
-
+                
                 <div class="mt-2 text-xs text-slate-400 leading-relaxed bg-slate-900 p-3 rounded-lg border border-slate-700">
                     <strong>הוראות הפעלה:</strong><br>
                     1. העלה תמונת גג.<br>
@@ -81,11 +74,11 @@
             backgroundColor: '#0f172a'
         });
 
-        // מידות הפאנל (בפיקסלים יחסיים בקנבס עבור יחס של 1.13 על 2.38)
-        const PANEL_W = 45; 
-        const PANEL_H = 95; 
+        // מידות הפאנל
+        const PANEL_W = 45;
+        const PANEL_H = 95;
         const PANEL_WATTS = 650;
-        const PRICE_PER_KW = 4000; // עלות משוערת לקילוואט בישראל
+        const PRICE_PER_KW = 4000;
 
         let isDrawing = false;
         let roofPoints = [];
@@ -96,7 +89,6 @@
         document.getElementById('upload').addEventListener('change', function (e) {
             const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = function (f) {
                 fabric.Image.fromURL(f.target.result, function (img) {
@@ -113,7 +105,7 @@
 
         // התחלת שרטוט גג
         function startDrawingRoof() {
-            clearRoof();
+            clearAll(); // מנקה הכל לפני התחלת שרטוט חדש
             isDrawing = true;
             roofPoints = [];
             alert('מצב שרטוט הופעל: לחץ על פינות הגג בתוך התמונה ברצף.');
@@ -158,7 +150,6 @@
                 selectable: false,
                 objectCaching: false
             });
-
             canvas.add(roofPolygon);
             canvas.sendToBack(roofPolygon);
             canvas.renderAll();
@@ -171,20 +162,14 @@
                 alert('יש לשרטט גג תחילה!');
                 return;
             }
-
-            // מחיקת פאנלים קודמים אם יש
             clearPanelsOnly();
-
             const bound = roofPolygon.getBoundingRect();
-            const spacing = 6; // רווח בין פאנלים
+            const spacing = 6; 
 
             for (let y = bound.top; y < bound.top + bound.height; y += PANEL_H + spacing) {
                 for (let x = bound.left; x < bound.left + bound.width; x += PANEL_W + spacing) {
-                    
-                    // בדיקה האם מרכז הפאנל נמצא בתוך פוליגון הגג
                     const centerX = x + PANEL_W / 2;
                     const centerY = y + PANEL_H / 2;
-
                     if (isPointInPolygon({x: centerX, y: centerY}, roofPoints)) {
                         createPanelAt(x, y);
                     }
@@ -193,15 +178,13 @@
             updateStats();
         }
 
-        // אלגוריתם בדיקה האם נקודה נמצאת בתוך פוליגון (Ray-casting algorithm)
+        // אלגוריתם בדיקה האם נקודה נמצאת בתוך פוליגון (Ray-casting)
         function isPointInPolygon(point, polygon) {
             let inside = false;
             for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
                 let xi = polygon[i].x, yi = polygon[i].y;
                 let xj = polygon[j].x, yj = polygon[j].y;
-                
-                let intersect = ((yi > point.y) != (yj > point.y)) &&
-                    (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+                let intersect = ((yi > point.y) != (yj > point.y)) && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
                 if (intersect) inside = !inside;
             }
             return inside;
@@ -219,13 +202,15 @@
                 ry: 2,
                 opacity: 0.95
             });
-
+            
+            // הפיכת הפאנל לנייד ובר עריכה/מחיקה
             const group = new fabric.Group([panel], {
                 left: left,
                 top: top,
-                subTargetCheck: false
+                selectable: true,
+                hasControls: true,
+                hasBorders: true
             });
-
             canvas.add(group);
         }
 
@@ -233,16 +218,6 @@
         function addSinglePanel() {
             createPanelAt(350, 250);
             updateStats();
-        }
-
-        // מחיקת גג קודם
-        function clearRoof() {
-            if (roofPolygon) {
-                canvas.remove(roofPolygon);
-                roofPolygon = null;
-            }
-            tempLines.forEach(l => canvas.remove(l));
-            tempLines = [];
         }
 
         // מחיקת פאנלים בלבד
@@ -259,23 +234,3 @@
             roofPolygon = null;
             roofPoints = [];
             isDrawing = false;
-            updateStats();
-        }
-
-        // עדכון סטטיסטיקות ועלויות
-        function updateStats() {
-            const panels = canvas.getObjects().filter(obj => obj.type === 'group');
-            const count = panels.length;
-            const totalKW = ((count * PANEL_WATTS) / 1000).toFixed(1);
-            const totalCost = (totalKW * PRICE_PER_KW).toLocaleString();
-
-            document.getElementById('panel-count').innerText = count;
-            document.getElementById('total-power').innerText = totalKW + ' קילוואט';
-            document.getElementById('total-cost').innerText = '₪' + totalCost;
-        }
-
-        canvas.on('object:added', updateStats);
-        canvas.on('object:removed', updateStats);
-    </script>
-</body>
-</html>
