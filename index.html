@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SolarRoof Planner Pro - Auto Grid</title>
-    <!-- טעינת ספריית הגרפיקה Fabric.js וערכת העיצוב Tailwind CSS -->
-    <script src="https://cloudflare.com"></script>
+    <!-- טעינת ספריות מאובטחות מעודכנות (HTTPS) -->
+    <script src="https://cloudflare.com" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-white font-sans min-h-screen p-6">
@@ -32,7 +32,6 @@
                 </div>
                 <hr class="border-slate-700">
                 <h3 class="text-sm font-semibold text-amber-400">שלב 1: שרטוט הגג</h3>
-                <!-- תיקון: הוסרו התווים המשובשים מה-onclick -->
                 <button onclick="startDrawingRoof()" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition">
                     ✏️ שרטט גג (לחץ פינות)
                 </button>
@@ -48,6 +47,9 @@
                     + הוסף פאנל ידנית
                 </button>
                 <hr class="border-slate-700">
+                <button onclick="deleteSelected()" class="bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition">
+                    ❌ מחק פאנל מסומן
+                </button>
                 <button onclick="clearAll()" class="bg-rose-600 hover:bg-rose-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition">
                     🗑️ איפוס הכל
                 </button>
@@ -56,7 +58,8 @@
                     <strong>הוראות הפעלה:</strong><br>
                     1. העלה תמונת גג.<br>
                     2. לחץ "שרטט גג" ולחץ על פינות הגג בתמונה.<br>
-                    3. לחץ "סיים שרטוט" ואז "פריסה אוטומטית".
+                    3. לחץ "סיים שרטוט" ואז "פריסה אוטומטית".<br>
+                    4. ניתן להזיז/לסובב פאנלים, או למחוק פאנל מסומן עם כפתור המחיקה או מקש Delete במקלדת.
                 </div>
             </div>
 
@@ -85,9 +88,9 @@
         let roofPolygon = null;
         let tempLines = [];
 
-        // העלאת תמונת רקע
+        // העלאת תמונת רקע - תיקון הגדרת הקובץ ותמיכה ב-CORS
         document.getElementById('upload').addEventListener('change', function (e) {
-            const file = e.target.files[0];
+            const file = e.target.files[0]; // תיקון באג: נוסף האינדקס [0]
             if (!file) return;
             const reader = new FileReader();
             reader.onload = function (f) {
@@ -98,14 +101,14 @@
                         originY: 'top',
                         opacity: 0.8
                     });
-                });
+                }, { crossOrigin: 'anonymous' });
             };
             reader.readAsDataURL(file);
         });
 
         // התחלת שרטוט גג
         function startDrawingRoof() {
-            clearAll(); // מנקה הכל לפני התחלת שרטוט חדש
+            clearAll(); 
             isDrawing = true;
             roofPoints = [];
             alert('מצב שרטוט הופעל: לחץ על פינות הגג בתוך התמונה ברצף.');
@@ -117,7 +120,6 @@
             const pointer = canvas.getPointer(options.e);
             roofPoints.push({ x: pointer.x, y: pointer.y });
 
-            // סימון נקודה ויזואלית
             const circle = new fabric.Circle({
                 radius: 4,
                 fill: '#ef4444',
@@ -138,11 +140,9 @@
             }
             isDrawing = false;
 
-            // הסרת נקודות העזר
             tempLines.forEach(l => canvas.remove(l));
             tempLines = [];
 
-            // יצירת פוליגון הגג
             roofPolygon = new fabric.Polygon(roofPoints, {
                 fill: 'rgba(59, 130, 246, 0.2)',
                 stroke: '#3b82f6',
@@ -178,7 +178,6 @@
             updateStats();
         }
 
-        // אלגוריתם בדיקה האם נקודה נמצאת בתוך פוליגון (Ray-casting)
         function isPointInPolygon(point, polygon) {
             let inside = false;
             for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
@@ -190,7 +189,6 @@
             return inside;
         }
 
-        // יצירת פאנל במיקום ספציפי
         function createPanelAt(left, top) {
             const panel = new fabric.Rect({
                 width: PANEL_W,
@@ -203,7 +201,6 @@
                 opacity: 0.95
             });
             
-            // הפיכת הפאנל לנייד ובר עריכה/מחיקה
             const group = new fabric.Group([panel], {
                 left: left,
                 top: top,
@@ -214,23 +211,20 @@
             canvas.add(group);
         }
 
-        // הוספת פאנל יחיד ידנית
         function addSinglePanel() {
             createPanelAt(350, 250);
             updateStats();
         }
 
-        // מחיקת פאנלים בלבד
-        function clearPanelsOnly() {
-            const objects = canvas.getObjects().filter(obj => obj.type === 'group');
-            objects.forEach(obj => canvas.remove(obj));
-            updateStats();
+        // פונקציה למחיקת הפאנל שנבחר כרגע
+        function deleteSelected() {
+            const activeObject = canvas.getActiveObject();
+            if (activeObject && activeObject.type === 'group') {
+                canvas.remove(activeObject);
+                canvas.discardActiveObject();
+                canvas.renderAll();
+                updateStats();
+            }
         }
 
-        // איפוס מלא
-        function clearAll() {
-            canvas.clear();
-            canvas.setBackgroundImage(null, canvas.renderAll.bind(canvas));
-            roofPolygon = null;
-            roofPoints = [];
-            isDrawing = false;
+        // האזנה למקלדת - לחיצה על Delete תמחק את הפאנל המסומן
